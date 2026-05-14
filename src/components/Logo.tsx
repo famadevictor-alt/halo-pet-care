@@ -17,7 +17,7 @@ const Logo: React.FC<LogoProps> = ({ size = 40 }) => {
         <LinearGradient id="halo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <Stop offset="0%" stopColor="#76B9B3" />
           <Stop offset="100%" stopColor="#4A8EB2" />
-        </linearGradient>
+        </LinearGradient>
       </Defs>
       
       {/* Outer Circle Ring */}
