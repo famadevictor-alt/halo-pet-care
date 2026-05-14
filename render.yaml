@@ -4,6 +4,9 @@ services:
     env: static
     buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
     routes:
       - type: rewrite
         source: /*
