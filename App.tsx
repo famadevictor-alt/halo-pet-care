@@ -6,9 +6,20 @@ import Logo from './src/components/Logo';
 import HaloCard from './src/components/HaloCard';
 import HaloButton from './src/components/HaloButton';
 import { theme } from './src/styles/theme';
+import { registerForPushNotificationsAsync, scheduleAdaptiveDose } from './src/services/notification-service';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  React.useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
+
+  const handleTakeDose = async (medName: string, interval: number) => {
+    // In a real app, we would log this to Supabase first
+    await scheduleAdaptiveDose(medName, interval);
+    alert(`Dose taken! Next alert scheduled in ${interval} hours.`);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -60,6 +71,7 @@ export default function App() {
             title="Afternoon Meds"
             subtitle="Cardisure 5mg"
             status="current"
+            onPress={() => handleTakeDose('Cardisure', 12)}
           />
           <MedicationItem 
             time="8:00 PM - 10:00 PM"
@@ -98,32 +110,34 @@ export default function App() {
   );
 }
 
-const MedicationItem = ({ time, title, subtitle, status }) => {
+const MedicationItem = ({ time, title, subtitle, status, onPress }) => {
   const isCompleted = status === 'completed';
   const isCurrent = status === 'current';
 
   return (
-    <HaloCard 
-      variant={isCurrent ? 'elevated' : 'outline'}
-      style={[styles.medCard, isCurrent && styles.medCardActive]}
-    >
-      <View style={[
-        styles.iconContainer, 
-        isCompleted ? styles.iconBgSuccess : isCurrent ? styles.iconBgActive : styles.iconBgUpcoming
-      ]}>
-        <Pill size={24} color={isCompleted ? theme.colors.success : isCurrent ? theme.colors.primary : theme.colors.slate[300]} />
-      </View>
-      <View style={styles.medContent}>
-        <Text style={styles.medTime}>{time}</Text>
-        <Text style={styles.medTitle}>{title}</Text>
-        <Text style={styles.medSubtitle}>{subtitle}</Text>
-      </View>
-      {isCompleted && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>Done</Text>
+    <TouchableOpacity onPress={onPress} disabled={isCompleted}>
+      <HaloCard 
+        variant={isCurrent ? 'elevated' : 'outline'}
+        style={[styles.medCard, isCurrent && styles.medCardActive]}
+      >
+        <View style={[
+          styles.iconContainer, 
+          isCompleted ? styles.iconBgSuccess : isCurrent ? styles.iconBgActive : styles.iconBgUpcoming
+        ]}>
+          <Pill size={24} color={isCompleted ? theme.colors.success : isCurrent ? theme.colors.primary : theme.colors.slate[300]} />
         </View>
-      )}
-    </HaloCard>
+        <View style={styles.medContent}>
+          <Text style={styles.medTime}>{time}</Text>
+          <Text style={styles.medTitle}>{title}</Text>
+          <Text style={styles.medSubtitle}>{subtitle}</Text>
+        </View>
+        {isCompleted && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>Done</Text>
+          </View>
+        )}
+      </HaloCard>
+    </TouchableOpacity>
   );
 };
 
