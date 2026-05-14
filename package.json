@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build": "expo export -p web"
   },
   "dependencies": {
     "expo": "~54.0.33",
@@ -23,7 +24,10 @@
     "expo-notifications": "~0.29.11",
     "expo-device": "~7.0.1",
     "expo-camera": "~16.0.16",
-    "expo-image-manipulator": "~13.0.6"
+    "expo-image-manipulator": "~13.0.6",
+    "react-dom": "19.1.0",
+    "react-native-web": "~0.19.13",
+    "@expo/metro-runtime": "~4.0.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
