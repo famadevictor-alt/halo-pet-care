@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '../lib/supabase';
 
 /**
  * Service to handle user-provided corrections and labels for pills.
