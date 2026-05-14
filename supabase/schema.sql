@@ -62,3 +62,19 @@ CREATE POLICY "Users can manage meds for their pets" ON medications FOR ALL USIN
 CREATE POLICY "Users can manage logs for their pets" ON dose_logs FOR ALL USING (
   pet_id IN (SELECT id FROM pets WHERE owner_id = auth.uid())
 );
+
+-- AI Learning / User Labeled Pills
+CREATE TABLE labeled_pills (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  pill_name TEXT NOT NULL,
+  strength TEXT,
+  ai_identified_name TEXT, -- What Gemini thought it was (if any)
+  is_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE labeled_pills ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own labeled pills" ON labeled_pills FOR ALL USING (user_id = auth.uid());
+
