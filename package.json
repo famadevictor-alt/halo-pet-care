@@ -27,7 +27,8 @@
     "expo-image-manipulator": "~13.0.6",
     "react-dom": "19.1.0",
     "react-native-web": "~0.19.13",
-    "@expo/metro-runtime": "~4.0.1"
+    "@expo/metro-runtime": "~4.0.1",
+    "react-native-url-polyfill": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
