@@ -7,9 +7,12 @@ import HaloCard from './src/components/HaloCard';
 import HaloButton from './src/components/HaloButton';
 import { theme } from './src/styles/theme';
 import { registerForPushNotificationsAsync, scheduleAdaptiveDose } from './src/services/notification-service';
+import PillScanner from './src/components/PillScanner';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showScanner, setShowScanner] = useState(false);
+  const [lastScanResult, setLastScanResult] = useState<any>(null);
 
   React.useEffect(() => {
     registerForPushNotificationsAsync();
@@ -20,6 +23,25 @@ export default function App() {
     await scheduleAdaptiveDose(medName, interval);
     alert(`Dose taken! Next alert scheduled in ${interval} hours.`);
   };
+
+  const handleScanResult = (result: any) => {
+    setShowScanner(false);
+    setLastScanResult(result);
+    if (result.pillName !== 'Unknown') {
+      alert(`AI Identified: ${result.pillName} (${result.identifiedStrength})\nConfidence: ${Math.round(result.confidence * 100)}%`);
+    } else {
+      alert('AI could not identify this pill. Please try again or add manually.');
+    }
+  };
+
+  if (showScanner) {
+    return (
+      <PillScanner 
+        onClose={() => setShowScanner(false)} 
+        onResult={handleScanResult} 
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,7 +106,7 @@ export default function App() {
         <HaloButton 
           variant="gradient"
           title="Identify New Pill"
-          onPress={() => console.log('Open AI Camera')}
+          onPress={() => setShowScanner(true)}
           style={{ marginTop: 32 }}
           icon={<Pill size={20} color="#FFF" style={{ marginRight: 8 }} />}
         />

@@ -21,7 +21,9 @@
     "firebase": "^11.2.0",
     "@google/generative-ai": "^0.21.0",
     "expo-notifications": "~0.29.11",
-    "expo-device": "~7.0.1"
+    "expo-device": "~7.0.1",
+    "expo-camera": "~16.0.16",
+    "expo-image-manipulator": "~13.0.6"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
