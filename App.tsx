@@ -54,10 +54,10 @@ export default function App() {
           <Text style={styles.headerTitle}>Halo Pet Care</Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} accessibilityRole="button" accessibilityLabel="View Activity">
             <Activity size={24} color={theme.colors.slate[400]} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Settings">
             <Settings size={24} color={theme.colors.slate[400]} />
           </TouchableOpacity>
         </View>
@@ -114,16 +114,32 @@ export default function App() {
 
       {/* Bottom Tab Bar */}
       <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('dashboard')}>
+        <TouchableOpacity 
+          style={styles.tabItem} 
+          onPress={() => setActiveTab('dashboard')}
+          accessibilityRole="tab" 
+          accessibilityLabel="Dashboard Tab" 
+          accessibilityState={{ selected: activeTab === 'dashboard' }}
+        >
           <ClipboardList size={24} color={activeTab === 'dashboard' ? theme.colors.primary : theme.colors.slate[400]} />
           <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Dashboard</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.fab}>
+        <TouchableOpacity 
+          style={styles.fab}
+          accessibilityRole="button" 
+          accessibilityLabel="Add Medication or Log"
+        >
           <Plus size={32} color={theme.colors.white} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
+        <TouchableOpacity 
+          style={styles.tabItem} 
+          onPress={() => setActiveTab('reports')}
+          accessibilityRole="tab" 
+          accessibilityLabel="Vet Reports Tab" 
+          accessibilityState={{ selected: activeTab === 'reports' }}
+        >
           <Calendar size={24} color={activeTab === 'reports' ? theme.colors.primary : theme.colors.slate[400]} />
           <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabLabelActive]}>Vet Reports</Text>
         </TouchableOpacity>
@@ -137,7 +153,12 @@ const MedicationItem = ({ time, title, subtitle, status, onPress }) => {
   const isCurrent = status === 'current';
 
   return (
-    <TouchableOpacity onPress={onPress} disabled={isCompleted}>
+    <TouchableOpacity 
+      onPress={onPress} 
+      disabled={isCompleted}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${subtitle}, scheduled for ${time}. Status: ${status}`}
+    >
       <HaloCard 
         variant={isCurrent ? 'elevated' : 'outline'}
         style={[styles.medCard, isCurrent && styles.medCardActive]}
@@ -192,7 +213,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   iconButton: {
-    marginLeft: 16,
+    marginLeft: 8,
+    padding: 8,
   },
   content: {
     flex: 1,
@@ -220,8 +242,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#FFFFFF',
+    opacity: 0.95,
     fontSize: 14,
+    fontWeight: '500',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -302,6 +326,10 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minWidth: 64,
   },
   tabLabel: {
     fontSize: 10,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity, Text, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, ViewStyle, TextStyle, ActivityIndicator, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../styles/theme';
 
@@ -10,6 +10,7 @@ interface HaloButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   icon?: React.ReactNode;
+  isLoading?: boolean;
 }
 
 const HaloButton: React.FC<HaloButtonProps> = ({ 
@@ -18,56 +19,78 @@ const HaloButton: React.FC<HaloButtonProps> = ({
   variant = 'primary', 
   style, 
   textStyle,
-  icon 
+  icon,
+  isLoading = false
 }) => {
   const isGradient = variant === 'gradient';
 
   const content = (
+    <View style={styles.contentContainer}>
+      {isLoading ? (
+        <ActivityIndicator color={variant === 'outline' ? theme.colors.primary : theme.colors.white} />
+      ) : (
+        <>
+          {icon && <View style={styles.iconWrapper}>{icon}</View>}
+          <Text style={[
+            styles.textBase,
+            variant === 'outline' ? styles.textOutline : styles.textSolid,
+            textStyle
+          ]}>
+            {title}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+
+  return (
     <TouchableOpacity 
       activeOpacity={0.8}
       onPress={onPress}
+      disabled={isLoading}
+      accessibilityRole="button"
       style={[
         styles.base,
         !isGradient && styles[variant],
-        style
+        style,
+        isLoading && styles.loadingState
       ]}
     >
-      {icon && <React.Fragment>{icon}</React.Fragment>}
-      <Text style={[
-        styles.textBase,
-        variant === 'outline' ? styles.textOutline : styles.textSolid,
-        textStyle
-      ]}>
-        {title}
-      </Text>
+      {isGradient ? (
+        <LinearGradient
+          colors={theme.gradients.brand}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        >
+          {content}
+        </LinearGradient>
+      ) : (
+        content
+      )}
     </TouchableOpacity>
   );
-
-  if (isGradient) {
-    return (
-      <LinearGradient
-        colors={theme.gradients.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.base, style]}
-      >
-        {content}
-      </LinearGradient>
-    );
-  }
-
-  return content;
 };
 
 const styles = StyleSheet.create({
   base: {
     borderRadius: theme.borderRadius['2xl'],
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    minHeight: 56,
+    overflow: 'hidden', // Required for gradient absoluteFill
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 56,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    width: '100%',
+    height: '100%',
+  },
+  iconWrapper: {
+    marginRight: 8,
   },
   primary: {
     backgroundColor: theme.colors.primary,
@@ -80,8 +103,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: theme.colors.primary,
   },
-  gradient: {
-    // Gradient is handled by the wrapper
+  loadingState: {
+    opacity: 0.7,
   },
   textBase: {
     fontSize: 16,

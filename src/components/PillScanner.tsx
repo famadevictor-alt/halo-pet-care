@@ -31,7 +31,12 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
     return (
       <View style={styles.permissionContainer}>
         <Text style={styles.permissionText}>We need your permission to show the camera</Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+        <TouchableOpacity 
+          style={styles.permissionButton} 
+          onPress={requestPermission}
+          accessibilityRole="button"
+          accessibilityLabel="Grant Camera Permission"
+        >
           <Text style={styles.permissionButtonText}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
@@ -80,7 +85,12 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
         <View style={styles.overlay}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Close Scanner"
+            >
               <X color="#FFF" size={28} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Pill ID</Text>
@@ -110,6 +120,8 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
               style={styles.captureButton} 
               onPress={handleCapture}
               disabled={isScanning}
+              accessibilityRole="button"
+              accessibilityLabel="Capture Pill Photo"
             >
               <View style={styles.captureButtonInner}>
                 <Camera color={theme.colors.primary} size={32} />
