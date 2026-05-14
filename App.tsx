@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
 import { Pill, Plus, Calendar, Settings, Activity, ClipboardList } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Logo from './src/components/Logo';
+import HaloCard from './src/components/HaloCard';
+import HaloButton from './src/components/HaloButton';
+import { theme } from './src/styles/theme';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -18,21 +22,26 @@ export default function App() {
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconButton}>
-            <Activity size={24} color="#94A3B8" />
+            <Activity size={24} color={theme.colors.slate[400]} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton}>
-            <Settings size={24} color="#94A3B8" />
+            <Settings size={24} color={theme.colors.slate[400]} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Main Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.heroCard}>
+        <LinearGradient
+          colors={theme.gradients.brand}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
           <Text style={styles.heroLabel}>Upcoming Window</Text>
           <Text style={styles.heroTitle}>Next dose in 2h 15m</Text>
           <Text style={styles.heroSubtitle}>Anytime between 2:00 PM - 4:00 PM</Text>
-        </View>
+        </LinearGradient>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Today's Flow</Text>
@@ -59,21 +68,29 @@ export default function App() {
             status="upcoming"
           />
         </View>
+
+        <HaloButton 
+          variant="gradient"
+          title="Identify New Pill"
+          onPress={() => console.log('Open AI Camera')}
+          style={{ marginTop: 32 }}
+          icon={<Pill size={20} color="#FFF" style={{ marginRight: 8 }} />}
+        />
       </ScrollView>
 
       {/* Bottom Tab Bar */}
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('dashboard')}>
-          <ClipboardList size={24} color={activeTab === 'dashboard' ? '#4A8EB2' : '#94A3B8'} />
+          <ClipboardList size={24} color={activeTab === 'dashboard' ? theme.colors.primary : theme.colors.slate[400]} />
           <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Dashboard</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.fab}>
-          <Plus size={32} color="#FFFFFF" />
+          <Plus size={32} color={theme.colors.white} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
-          <Calendar size={24} color={activeTab === 'reports' ? '#4A8EB2' : '#94A3B8'} />
+          <Calendar size={24} color={activeTab === 'reports' ? theme.colors.primary : theme.colors.slate[400]} />
           <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabLabelActive]}>Vet Reports</Text>
         </TouchableOpacity>
       </View>
@@ -86,9 +103,15 @@ const MedicationItem = ({ time, title, subtitle, status }) => {
   const isCurrent = status === 'current';
 
   return (
-    <View style={[styles.medCard, isCurrent && styles.medCardActive]}>
-      <View style={[styles.iconContainer, isCompleted ? styles.iconBgSuccess : isCurrent ? styles.iconBgActive : styles.iconBgUpcoming]}>
-        <Pill size={24} color={isCompleted ? '#10B981' : isCurrent ? '#4A8EB2' : '#CBD5E1'} />
+    <HaloCard 
+      variant={isCurrent ? 'elevated' : 'outline'}
+      style={[styles.medCard, isCurrent && styles.medCardActive]}
+    >
+      <View style={[
+        styles.iconContainer, 
+        isCompleted ? styles.iconBgSuccess : isCurrent ? styles.iconBgActive : styles.iconBgUpcoming
+      ]}>
+        <Pill size={24} color={isCompleted ? theme.colors.success : isCurrent ? theme.colors.primary : theme.colors.slate[300]} />
       </View>
       <View style={styles.medContent}>
         <Text style={styles.medTime}>{time}</Text>
@@ -100,24 +123,24 @@ const MedicationItem = ({ time, title, subtitle, status }) => {
           <Text style={styles.badgeText}>Done</Text>
         </View>
       )}
-    </View>
+    </HaloCard>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.slate[50],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: theme.colors.slate[100],
   },
   headerLeft: {
     flexDirection: 'row',
@@ -126,7 +149,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#4A8EB2',
+    color: theme.colors.primary,
     marginLeft: 12,
   },
   headerRight: {
@@ -137,22 +160,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.lg,
   },
   heroCard: {
-    backgroundColor: '#4A8EB2',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 32,
-    shadowColor: '#4A8EB2',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    borderRadius: theme.borderRadius['2xl'],
+    padding: theme.spacing.xl,
+    marginBottom: theme.spacing.xl,
+    ...theme.shadows.strong,
   },
   heroLabel: {
-    color: '#E0F2FE',
+    color: theme.colors.accent,
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -160,7 +178,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
@@ -173,16 +191,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
+    color: theme.colors.slate[800],
   },
   dateText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: theme.colors.slate[400],
   },
   medicationList: {
     gap: 16,
@@ -190,24 +208,19 @@ const styles = StyleSheet.create({
   medCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    padding: theme.spacing.md,
   },
   medCardActive: {
-    borderColor: '#4A8EB2',
     borderLeftWidth: 4,
-    borderLeftColor: '#4A8EB2',
+    borderLeftColor: theme.colors.primary,
   },
   iconContainer: {
     padding: 12,
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.lg,
   },
   iconBgSuccess: { backgroundColor: '#ECFDF5' },
   iconBgActive: { backgroundColor: '#F0F9FF' },
-  iconBgUpcoming: { backgroundColor: '#F8FAFC' },
+  iconBgUpcoming: { backgroundColor: theme.colors.slate[50] },
   medContent: {
     flex: 1,
     marginLeft: 16,
@@ -215,24 +228,24 @@ const styles = StyleSheet.create({
   medTime: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: theme.colors.slate[400],
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   medTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
+    color: theme.colors.slate[700],
   },
   medSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.slate[500],
   },
   badge: {
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.md,
   },
   badgeText: {
     color: '#059669',
@@ -242,12 +255,12 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: theme.spacing['2xl'],
+    paddingVertical: theme.spacing.md,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.slate[100],
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -257,25 +270,21 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: theme.colors.slate[400],
     marginTop: 4,
     textTransform: 'uppercase',
   },
   tabLabelActive: {
-    color: '#4A8EB2',
+    color: theme.colors.primary,
   },
   fab: {
-    backgroundColor: '#4A8EB2',
+    backgroundColor: theme.colors.primary,
     width: 64,
     height: 64,
     borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: -48,
-    shadowColor: '#4A8EB2',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    ...theme.shadows.strong,
   }
 });
