@@ -7,7 +7,4 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+
