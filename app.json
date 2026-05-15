@@ -23,6 +23,15 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Halo Pet Care to access your photos to set your pet's profile picture."
+        }
+      ],
+      "expo-notifications"
+    ],
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",

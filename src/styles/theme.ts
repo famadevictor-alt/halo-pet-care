@@ -19,6 +19,12 @@ export const theme = {
     warning: '#F59E0B',
     error: '#EF4444',
     white: '#FFFFFF',
+    dark: {
+      bg: '#0F172A', // Slate 900
+      card: '#1E293B', // Slate 800
+      text: '#F8FAFC', // Slate 50
+      border: '#334155', // Slate 700
+    }
   },
   gradients: {
     brand: ['#76B9B3', '#4A8EB2'], // Teal to Blue

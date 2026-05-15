@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, ViewProps } from 'react-native';
 import { theme } from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface HaloCardProps extends ViewProps {
   variant?: 'flat' | 'elevated' | 'outline';
@@ -8,10 +9,13 @@ interface HaloCardProps extends ViewProps {
 }
 
 const HaloCard: React.FC<HaloCardProps> = ({ variant = 'elevated', children, style, ...props }) => {
+  const { isDark } = useTheme();
+
   return (
     <View 
       style={[
         styles.base, 
+        isDark && { backgroundColor: theme.colors.dark.card, borderColor: theme.colors.dark.border },
         variant === 'elevated' && styles.elevated,
         variant === 'outline' && styles.outline,
         style

@@ -2,12 +2,14 @@ import React, { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { X, Zap, Camera, Check, Edit3 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { X, Zap, Camera, Check, Edit3, Image as ImageIcon } from 'lucide-react-native';
 import { theme } from '../styles/theme';
 import { identifyPill } from '../services/gemini-vision';
 import { labelPill } from '../services/learning-service';
 import HaloButton from './HaloButton';
 import { TextInput } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface PillScannerProps {
   onClose: () => void;
@@ -22,6 +24,7 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<any>(null);
   const cameraRef = useRef<any>(null);
+  const { isDark } = useTheme();
 
   if (!permission) {
     return <View />;
@@ -42,6 +45,47 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
       </View>
     );
   }
+
+  const handlePickFromGallery = async () => {
+    if (isScanning) return;
+    
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Gallery access is needed to identify clinical records.');
+      return;
+    }
+
+    setIsScanning(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        // Compress and resize image further for Gemini efficiency
+        const manipulated = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+
+        if (manipulated.base64) {
+          setCurrentPhoto(manipulated.base64);
+          const aiRes = await identifyPill(manipulated.base64);
+          setAiResult(aiRes);
+          setShowManualEntry(true);
+        }
+      }
+    } catch (error) {
+      console.error('Gallery Pick Error:', error);
+      alert('Failed to process gallery image');
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleCapture = async () => {
     if (cameraRef.current && !isScanning) {
@@ -116,6 +160,7 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
 
           {/* Footer */}
           <View style={styles.footer}>
+            <View style={{ width: 44 }} />
             <TouchableOpacity 
               style={styles.captureButton} 
               onPress={handleCapture}
@@ -127,6 +172,15 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
                 <Camera color={theme.colors.primary} size={32} />
               </View>
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.galleryButton} 
+              onPress={handlePickFromGallery}
+              disabled={isScanning}
+              accessibilityRole="button"
+              accessibilityLabel="Pick from Gallery"
+            >
+              <ImageIcon color="#FFF" size={24} />
+            </TouchableOpacity>
           </View>
         </View>
       </CameraView>
@@ -134,23 +188,23 @@ export default function PillScanner({ onClose, onResult }: PillScannerProps) {
       {/* Manual Entry / AI Correction Modal Overlay */}
       {showManualEntry && (
         <View style={styles.manualEntryOverlay}>
-          <View style={styles.manualCard}>
-            <Text style={styles.manualTitle}>
+          <View style={[styles.manualCard, isDark && { backgroundColor: theme.colors.dark.bg, borderColor: 'rgba(255,255,255,0.1)' }]}>
+            <Text style={[styles.manualTitle, isDark && { color: 'rgba(255,255,255,0.5)' }]}>
               {aiResult?.pillName !== 'Unknown' ? 'AI Identified this as:' : 'Pill Not Recognized'}
             </Text>
             
             {aiResult?.pillName !== 'Unknown' && (
-              <Text style={styles.aiPrediction}>{aiResult.pillName} ({aiResult.identifiedStrength})</Text>
+              <Text style={[styles.aiPrediction, isDark && { color: theme.colors.primary }]}>{aiResult.pillName} ({aiResult.identifiedStrength})</Text>
             )}
 
-            <Text style={styles.manualLabel}>Does this look right? Or enter a custom name:</Text>
+            <Text style={[styles.manualLabel, isDark && { color: 'rgba(255,255,255,0.7)' }]}>Does this look right? Or enter a custom name:</Text>
             
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDark && { backgroundColor: 'rgba(255,255,255,0.05)', color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.1)' }]}
               placeholder="e.g. Cardisure 5mg"
               value={manualName}
               onChangeText={setManualName}
-              placeholderTextColor={theme.colors.slate[400]}
+              placeholderTextColor={isDark ? "rgba(255,255,255,0.3)" : theme.colors.slate[400]}
             />
 
             <View style={styles.manualActions}>
@@ -284,6 +338,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  galleryButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   captureButton: {

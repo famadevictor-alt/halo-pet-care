@@ -40,3 +40,37 @@ export const identifyPill = async (base64Image: string) => {
     return { pillName: "Unknown", error: "Failed to process image" };
   }
 };
+
+export const summarizeVetReport = async (base64Pdf: string) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `
+      Analyze this veterinary report PDF and provide a concise clinical summary.
+      Focus on:
+      1. Main diagnosis or reason for visit.
+      2. Any new medications prescribed (names and dosages).
+      3. Key recommendations or next steps.
+      4. Any concerning findings or follow-up dates.
+      
+      Keep the summary under 150 words and professional. 
+      Format with bullet points.
+    `;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Pdf,
+          mimeType: "application/pdf",
+        },
+      },
+    ]);
+
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("Gemini PDF Error:", error);
+    return "Clinical summary unavailable at this time.";
+  }
+};
