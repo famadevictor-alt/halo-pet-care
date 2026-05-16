@@ -31,7 +31,17 @@ export default function PetSetupModal({ visible, onClose, onSuccess, pet }: PetS
   const [species, setSpecies] = useState<'Dog' | 'Cat' | 'Other'>(pet?.species || 'Dog');
   const [breed, setBreed] = useState(pet?.breed || '');
   const [weight, setWeight] = useState(pet?.weight_kg?.toString() || '');
+  const [vetName, setVetName] = useState(pet?.vet_name || '');
+  const [vetPhone, setVetPhone] = useState(pet?.vet_phone || '');
   const [loading, setLoading] = useState(false);
+  const [sex, setSex] = useState<'male' | 'female'>(pet?.sex || 'male');
+  const [isNeutered, setIsNeutered] = useState<boolean>(pet?.is_neutered || false);
+  const [allergies, setAllergies] = useState(pet?.allergies || '');
+  const [microchipId, setMicrochipId] = useState(pet?.microchip_id || '');
+  const [insuranceProvider, setInsuranceProvider] = useState(pet?.insurance_provider || '');
+  const [insurancePolicy, setInsurancePolicy] = useState(pet?.insurance_policy_no || '');
+  const [passportNumber, setPassportNumber] = useState(pet?.passport_number || '');
+  const [medicalCardNo, setMedicalCardNo] = useState(pet?.medical_card_no || '');
   const [photo, setPhoto] = useState<string | null>(pet?.avatar_url || null);
   const cameraRef = React.useRef<any>(null);
 
@@ -73,6 +83,16 @@ export default function PetSetupModal({ visible, onClose, onSuccess, pet }: PetS
       setSpecies(pet.species);
       setBreed(pet.breed);
       setWeight(pet.weight_kg?.toString() || '');
+      setVetName(pet.vet_name || '');
+      setVetPhone(pet.vet_phone || '');
+      setSex(pet.sex || 'unknown');
+      setIsNeutered(pet.is_neutered || false);
+      setAllergies(pet.allergies || '');
+      setMicrochipId(pet.microchip_id || '');
+      setInsuranceProvider(pet.insurance_provider || '');
+      setInsurancePolicy(pet.insurance_policy_no || '');
+      setPassportNumber(pet.passport_number || '');
+      setMedicalCardNo(pet.medical_card_no || '');
       setPhoto(pet.avatar_url);
     } else {
       resetForm();
@@ -180,6 +200,16 @@ export default function PetSetupModal({ visible, onClose, onSuccess, pet }: PetS
         species,
         breed,
         weight_kg: parseFloat(weight) || 0,
+        vet_name: vetName,
+        vet_phone: vetPhone,
+        sex,
+        is_neutered: isNeutered,
+        allergies: allergies || 'None known',
+        microchip_id: microchipId,
+        insurance_provider: insuranceProvider,
+        insurance_policy_no: insurancePolicy,
+        passport_number: passportNumber,
+        medical_card_no: medicalCardNo,
         avatar_url: avatarUrl || photo,
       };
 
@@ -222,6 +252,16 @@ export default function PetSetupModal({ visible, onClose, onSuccess, pet }: PetS
     setName('');
     setBreed('');
     setWeight('');
+    setVetName('');
+    setVetPhone('');
+    setSex('male');
+    setIsNeutered(false);
+    setAllergies('');
+    setMicrochipId('');
+    setInsuranceProvider('');
+    setInsurancePolicy('');
+    setPassportNumber('');
+    setMedicalCardNo('');
     setPhoto(null);
     setStep('form');
     setLoading(false);
@@ -350,6 +390,131 @@ export default function PetSetupModal({ visible, onClose, onSuccess, pet }: PetS
                         onChangeText={setWeight}
                       />
                     </View>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, dynamicStyles.label]}>SEX & NEUTER STATUS</Text>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <View style={styles.sexGrid}>
+                      {(['male', 'female'] as const).map((s) => (
+                        <TouchableOpacity
+                          key={s}
+                          style={[
+                            styles.sexBtn,
+                            dynamicStyles.card,
+                            sex === s && styles.sexBtnActive
+                          ]}
+                          onPress={() => setSex(s)}
+                        >
+                          <Text style={[
+                            styles.sexText, 
+                            dynamicStyles.subtext,
+                            sex === s && styles.sexTextActive
+                          ]}>{s.toUpperCase()}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity 
+                      style={[styles.neuterBtn, dynamicStyles.card, isNeutered && styles.neuterBtnActive]}
+                      onPress={() => setIsNeutered(!isNeutered)}
+                    >
+                      <Check size={16} color={isNeutered ? '#FFF' : theme.colors.slate[400]} />
+                      <Text style={[styles.neuterText, dynamicStyles.subtext, isNeutered && styles.neuterTextActive]}>
+                        FIXED
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, dynamicStyles.label]}>KNOWN ALLERGIES</Text>
+                  <TextInput
+                    style={[styles.glassInput, dynamicStyles.input]}
+                    placeholder="e.g. Penicillin, Chicken, Bees"
+                    placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                    value={allergies}
+                    onChangeText={setAllergies}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, dynamicStyles.label]}>PRIMARY CARE VETERINARIAN</Text>
+                  <TextInput
+                    style={[styles.glassInput, dynamicStyles.input]}
+                    placeholder="Clinic or Vet Name"
+                    placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                    value={vetName}
+                    onChangeText={setVetName}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, dynamicStyles.label]}>VET CONTACT NUMBER</Text>
+                  <TextInput
+                    style={[styles.glassInput, dynamicStyles.input]}
+                    placeholder="Phone for emergency triage"
+                    placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                    keyboardType="phone-pad"
+                    value={vetPhone}
+                    onChangeText={setVetPhone}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, dynamicStyles.label]}>MICROCHIP ID</Text>
+                  <TextInput
+                    style={[styles.glassInput, dynamicStyles.input]}
+                    placeholder="Enter microchip number"
+                    placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                    value={microchipId}
+                    onChangeText={setMicrochipId}
+                  />
+                </View>
+
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
+                    <Text style={[styles.label, dynamicStyles.label]}>INSURANCE PROVIDER</Text>
+                    <TextInput
+                      style={[styles.glassInput, dynamicStyles.input]}
+                      placeholder="e.g. PetPlan"
+                      placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                      value={insuranceProvider}
+                      onChangeText={setInsuranceProvider}
+                    />
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={[styles.label, dynamicStyles.label]}>POLICY NUMBER</Text>
+                    <TextInput
+                      style={[styles.glassInput, dynamicStyles.input]}
+                      placeholder="Policy #"
+                      placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                      value={insurancePolicy}
+                      onChangeText={setInsurancePolicy}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
+                    <Text style={[styles.label, dynamicStyles.label]}>PASSPORT NUMBER</Text>
+                    <TextInput
+                      style={[styles.glassInput, dynamicStyles.input]}
+                      placeholder="e.g. EU12345"
+                      placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                      value={passportNumber}
+                      onChangeText={setPassportNumber}
+                    />
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={[styles.label, dynamicStyles.label]}>MEDICAL CARD NO</Text>
+                    <TextInput
+                      style={[styles.glassInput, dynamicStyles.input]}
+                      placeholder="Card #"
+                      placeholderTextColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
+                      value={medicalCardNo}
+                      onChangeText={setMedicalCardNo}
+                    />
                   </View>
                 </View>
 
@@ -598,6 +763,57 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: '#FFF',
     fontWeight: '600',
+  },
+  sexGrid: {
+    flex: 2,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sexBtn: {
+    flex: 1,
+    height: 54,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  sexBtnActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  sexText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  sexTextActive: {
+    color: '#FFF',
+  },
+  neuterBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 54,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    gap: 8,
+  },
+  neuterBtnActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  neuterText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  neuterTextActive: {
+    color: '#FFF',
   },
   clinicalNote: {
     flexDirection: 'row',

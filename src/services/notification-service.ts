@@ -12,6 +12,16 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Create Android notification channel
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('clinical-reminders', {
+    name: 'Clinical Reminders',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#FF231F7C',
+  });
+}
+
 export const registerForPushNotificationsAsync = async () => {
   if (!Device.isDevice) {
     console.log('Must use physical device for Push Notifications');
@@ -44,38 +54,91 @@ export const registerForPushNotificationsAsync = async () => {
 };
 
 /**
- * Schedules an adaptive notification based on the last dose taken.
- * @param medicationName Name of the medication
- * @param intervalHours Hours until next dose
+ * Schedules multiple nagging notifications to ensure adherence.
+ * @param medicationId 
+ * @param medicationName 
+ * @param initialDate Date for the first reminder
+ * @param intervalMins Minutes between reminders
+ * @param count Number of reminders to schedule
  */
-export const scheduleAdaptiveDose = async (medicationId: string, medicationName: string, intervalHours: number) => {
-  // Ensure intervalHours is a valid number
-  const hours = typeof intervalHours === 'string' ? parseFloat(intervalHours) : intervalHours;
+export const scheduleNaggingReminders = async (
+  medicationId: string, 
+  medicationName: string, 
+  initialDate: Date, 
+  intervalMins: number = 5, 
+  count: number = 3
+) => {
+  const identifiers: string[] = [];
   
-  if (isNaN(hours) || hours <= 0) {
-    console.warn(`Invalid interval for ${medicationName}: ${intervalHours}`);
-    return null;
+  // Validation
+  if (!(initialDate instanceof Date) || isNaN(initialDate.getTime())) {
+    console.error('Notification Error: Invalid initialDate');
+    return [];
   }
 
-  // Convert hours to seconds for a more robust TimeIntervalTrigger
-  // Ensure it's at least 60 seconds to avoid trigger errors on some platforms
-  const seconds = Math.max(60, Math.floor(hours * 3600));
+  const safeInterval = Math.max(1, parseInt(intervalMins.toString()) || 5);
+  const safeCount = Math.max(1, parseInt(count.toString()) || 1);
 
-  const identifier = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "🐾 Time for medication!",
-      body: `It's time to give ${medicationName}. This dose is based on your pet's last recovery window.`,
-      data: { medicationId, medicationName },
-      sound: 'default',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds,
-      repeats: false
-    },
-  });
+  for (let i = 0; i < safeCount; i++) {
+    try {
+      const triggerTime = new Date(initialDate.getTime() + (i * safeInterval * 60000));
+      const secondsFromNow = Math.floor((triggerTime.getTime() - Date.now()) / 1000);
+      
+      // Skip if trigger time is in the past (must be at least 1 second in future)
+      if (secondsFromNow <= 0) continue;
 
-  return identifier;
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: i === 0 ? "🐾 Medication Reminder" : "⚠️ MISSED DOSE NAG",
+          body: i === 0 
+            ? `It's time for ${medicationName}.` 
+            : `URGENT: ${medicationName} is now overdue. Please administer it as soon as possible.`,
+          data: { medicationId, medicationName, isNag: i > 0 },
+          sound: 'default',
+          priority: i === 0 ? 'default' : 'high',
+          android: {
+            channelId: 'clinical-reminders',
+            priority: 'high',
+          }
+        },
+        trigger: {
+          type: 'timeInterval', // Use string literal for maximum compatibility
+          seconds: Math.max(1, secondsFromNow),
+          repeats: false
+        } as any,
+      });
+      
+      identifiers.push(identifier);
+    } catch (error) {
+      console.error(`Failed to schedule reminder ${i}:`, error);
+    }
+  }
+
+  return identifiers;
+};
+
+/**
+ * Schedules an adaptive notification based on the last dose taken.
+ */
+export const scheduleAdaptiveDose = async (
+  medicationId: string, 
+  medicationName: string, 
+  intervalHours: number,
+  nagIntervalMins: number = 5,
+  nagCount: number = 3
+) => {
+  const hours = typeof intervalHours === 'string' ? parseFloat(intervalHours) : intervalHours;
+  if (isNaN(hours) || hours <= 0) return null;
+
+  const initialTriggerDate = new Date(Date.now() + (hours * 3600000));
+  
+  return await scheduleNaggingReminders(
+    medicationId, 
+    medicationName, 
+    initialTriggerDate, 
+    nagIntervalMins, 
+    nagCount
+  );
 };
 
 export const cancelMedicationNotifications = async (medicationId: string) => {
@@ -88,6 +151,37 @@ export const cancelMedicationNotifications = async (medicationId: string) => {
     }
   } catch (error) {
     console.error('Error canceling notification:', error);
+  }
+};
+
+export const scheduleAppointmentReminders = async (
+  appointmentId: string, 
+  appointmentTitle: string, 
+  appointmentAt: string, 
+  nagIntervalMins: number = 60, 
+  nagCount: number = 1
+) => {
+  const apptDate = new Date(appointmentAt);
+  
+  return await scheduleNaggingReminders(
+    appointmentId, 
+    `Appointment: ${appointmentTitle}`, 
+    apptDate, 
+    nagIntervalMins, 
+    nagCount
+  );
+};
+
+export const cancelAppointmentNotifications = async (appointmentId: string) => {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notification of scheduled) {
+      if (notification.content.data?.medicationId === appointmentId) { // We reuse medicationId field for simplicity or rename data key
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+      }
+    }
+  } catch (error) {
+    console.error('Error canceling appointment notification:', error);
   }
 };
 

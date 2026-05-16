@@ -48,6 +48,8 @@ export default function AddMedicationModal({
   const [totalQuantity, setTotalQuantity] = useState('');
   const [remainingDoses, setRemainingDoses] = useState('');
   const [trackInventory, setTrackInventory] = useState(false);
+  const [reminderInterval, setReminderInterval] = useState('5');
+  const [reminderCount, setReminderCount] = useState('12');
 
   const dynamicStyles = useMemo(() => ({
     modalContent: {
@@ -92,6 +94,8 @@ export default function AddMedicationModal({
         setRemainingDoses(editingMedication.remaining_doses?.toString() || '');
         setTrackInventory(true);
       }
+      setReminderInterval(editingMedication.reminder_interval_mins?.toString() || '5');
+      setReminderCount(editingMedication.reminder_count?.toString() || '12');
       setStep('form');
     }
   }, [initialData, editingMedication, visible]);
@@ -106,6 +110,8 @@ export default function AddMedicationModal({
     setTotalQuantity('');
     setRemainingDoses('');
     setTrackInventory(false);
+    setReminderInterval('5');
+    setReminderCount('12');
     setLoading(false);
   };
 
@@ -357,6 +363,39 @@ export default function AddMedicationModal({
               )}
             </View>
 
+            <View style={[styles.inputGroup, { marginTop: 8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <ShieldAlert size={20} color={theme.colors.warning} />
+                <Text style={[styles.label, dynamicStyles.subtext, { fontWeight: '700', marginBottom: 0 }]}>Clinical Reminders (Nagging)</Text>
+              </View>
+              
+              <View style={[styles.glassInventoryContainer, dynamicStyles.card]}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[styles.subLabel, dynamicStyles.subtext, { fontWeight: '700' }]}>Interval (Mins)</Text>
+                  <TextInput 
+                    style={[styles.smallGlassInput, dynamicStyles.input]}
+                    value={reminderInterval}
+                    onChangeText={setReminderInterval}
+                    keyboardType="numeric"
+                    placeholder="5"
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={[styles.subLabel, dynamicStyles.subtext, { fontWeight: '600' }]}>Total Reminders</Text>
+                  <TextInput 
+                    style={[styles.smallGlassInput, dynamicStyles.input]}
+                    value={reminderCount}
+                    onChangeText={setReminderCount}
+                    keyboardType="numeric"
+                    placeholder="3"
+                  />
+                </View>
+              </View>
+              <Text style={[styles.choiceSubtitle, dynamicStyles.subtext, { marginTop: 8, opacity: 0.6 }]}>
+                Reminders repeat every {reminderInterval} mins until confirmed.
+              </Text>
+            </View>
+
             <HaloButton 
               variant="gradient"
               title={loading ? 'Synchronizing...' : 'Activate Treatment'}
@@ -384,6 +423,8 @@ export default function AddMedicationModal({
                       interval_hours: intervalInHours,
                       total_quantity: trackInventory ? parseInt(totalQuantity) : null,
                       remaining_doses: trackInventory ? parseInt(remainingDoses) : null,
+                      reminder_interval_mins: parseInt(reminderInterval),
+                      reminder_count: parseInt(reminderCount),
                       status: 'active'
                     };
 
@@ -410,7 +451,13 @@ export default function AddMedicationModal({
                     if (error) throw error;
                     if (medId) {
                       await cancelMedicationNotifications(medId);
-                      await scheduleAdaptiveDose(medId, name, intervalInHours);
+                      await scheduleAdaptiveDose(
+                        medId, 
+                        name, 
+                        intervalInHours, 
+                        parseInt(reminderInterval), 
+                        parseInt(reminderCount)
+                      );
                     }
                     
                     setStep('success');

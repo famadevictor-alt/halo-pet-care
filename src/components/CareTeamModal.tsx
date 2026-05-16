@@ -83,7 +83,7 @@ export default function CareTeamModal({ visible, onClose, pet, userEmail }: Care
         },
         signal: controller.signal,
         body: JSON.stringify({
-          from: 'Halo Pet Care <onboarding@resend.dev>',
+          from: 'Halo Pet Care <info@terra-ascent.com>',
           to: recipientEmail,
           subject: `Join the Care Team for ${petName}`,
           html: `
@@ -140,12 +140,12 @@ export default function CareTeamModal({ visible, onClose, pet, userEmail }: Care
     }
 
     // Check for Duplicates (Requirement: Users should not be allowed to send invites to already registered mail)
-    if (trimmedEmail === userEmail.toLowerCase()) {
+    if (userEmail && trimmedEmail === userEmail.toLowerCase()) {
       Alert.alert('Restricted Action', 'You are the primary registrar of this account and already have full access.');
       return;
     }
 
-    const isAlreadyCaregiver = caregivers.some(c => c.caregiver_email.toLowerCase() === trimmedEmail);
+    const isAlreadyCaregiver = caregivers.some(c => c.caregiver_email && c.caregiver_email.toLowerCase() === trimmedEmail);
     if (isAlreadyCaregiver) {
       Alert.alert('Duplicate Member', 'This individual is already part of the care network for this patient.');
       return;

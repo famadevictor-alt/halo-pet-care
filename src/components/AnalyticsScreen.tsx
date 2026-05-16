@@ -20,7 +20,7 @@ interface AnalyticsScreenProps {
 export default function AnalyticsScreen({ medications, logs, vitals, isDark, onLogWeight, onRefill }: AnalyticsScreenProps) {
   const stats = calculateAdherence(medications, logs);
   const weeklyData = getWeeklyActivity(logs);
-  const weightData = vitals.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
+  const weightData = (vitals || []).sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
   const forecasts = calculateInventoryForecast(medications);
   
   const circleSize = 160;
@@ -239,7 +239,7 @@ export default function AnalyticsScreen({ medications, logs, vitals, isDark, onL
 
         {/* Inventory Forecast Insights */}
         {forecasts.map((f, i) => (
-          <TouchableOpacity key={i} style={[styles.glassCard, dynamicStyles.glassCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}>
+          <View key={i} style={[styles.glassCard, dynamicStyles.glassCard, { marginTop: 12, flexDirection: 'row', alignItems: 'center' }]}>
             <View style={[styles.insightIcon, { backgroundColor: f.isCritical ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)' }]}>
               <PackageOpen size={22} color={f.isCritical ? theme.colors.error : theme.colors.primary} />
             </View>
@@ -270,7 +270,7 @@ export default function AnalyticsScreen({ medications, logs, vitals, isDark, onL
               </View>
             </View>
             <ChevronRight size={20} color={isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)"} />
-          </TouchableOpacity>
+          </View>
         ))}
 
         <View style={{ height: 120 }} />

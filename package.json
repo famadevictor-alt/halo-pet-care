@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@google/generative-ai": "^0.21.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@supabase/supabase-js": "^2.48.1",
     "base64-arraybuffer": "^1.0.2",
     "date-fns": "4.1.0",

@@ -16,6 +16,7 @@ export interface VitalPoint {
 }
 
 export interface InventoryForecast {
+  medicationId: string;
   medicationName: string;
   daysRemaining: number;
   runOutDate: string;
@@ -23,9 +24,9 @@ export interface InventoryForecast {
 }
 
 export const calculateAdherence = (medications: any[], logs: any[]): AdherenceData => {
-  if (medications.length === 0) return { score: 0, totalDoses: 0, onTime: 0, late: 0, missed: 0, trend: 0 };
+  if (!medications || medications.length === 0) return { score: 0, totalDoses: 0, onTime: 0, late: 0, missed: 0, trend: 0 };
 
-  const totalDoses = logs.length;
+  const totalDoses = logs?.length || 0;
   if (totalDoses === 0) return { score: 0, totalDoses: 0, onTime: 0, late: 0, missed: 0, trend: 0 };
 
   let onTime = 0;
@@ -40,13 +41,13 @@ export const calculateAdherence = (medications: any[], logs: any[]): AdherenceDa
 
     const diff = Math.abs(differenceInMinutes(new Date(log.taken_at), new Date(log.scheduled_at)));
     
-    // Clinical Thresholds:
-    // 0-60m: On Time
-    // 60-120m: Late
-    // 120m+: Missed / Critically Late
-    if (diff <= 60) {
+    // Stricter Clinical Thresholds:
+    // 0-15m: On Time (Requirement: Precision care)
+    // 15-45m: Late (Requirement: Reduced adherence window)
+    // 45m+: Missed / Critically Late
+    if (diff <= 15) {
       onTime++;
-    } else if (diff <= 120) {
+    } else if (diff <= 45) {
       late++;
     } else {
       missed++;
@@ -67,6 +68,7 @@ export const calculateAdherence = (medications: any[], logs: any[]): AdherenceDa
 };
 
 export const getWeeklyActivity = (logs: any[]) => {
+  if (!logs) return [];
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const activity = days.map(day => ({ day, count: 0 }));
 
@@ -100,6 +102,7 @@ export const formatWeightData = (vitals: any[]): VitalPoint[] => {
 };
 
 export const calculateInventoryForecast = (medications: any[]): InventoryForecast[] => {
+  if (!medications) return [];
   return medications
     .filter(m => m.remaining_doses !== null && m.remaining_doses !== undefined)
     .map(m => {
@@ -118,6 +121,7 @@ export const calculateInventoryForecast = (medications: any[]): InventoryForecas
       runOutDate.setDate(runOutDate.getDate() + daysRemaining);
       
       return {
+        medicationId: m.id,
         medicationName: m.name,
         daysRemaining,
         runOutDate: format(runOutDate, 'MMM d'),
@@ -128,7 +132,7 @@ export const calculateInventoryForecast = (medications: any[]): InventoryForecas
 };
 
 export const calculateClinicalCareScore = (medications: any[], logs: any[]): number => {
-  if (medications.length === 0) return 100;
+  if (!medications || medications.length === 0) return 100;
   const adherence = calculateAdherence(medications, logs);
   return adherence.score;
 };

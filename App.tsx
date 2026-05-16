@@ -15,7 +15,13 @@ import {
   Heart, 
   Users, 
   Trash2,
-  Pencil
+  Pencil,
+  X,
+  RotateCcw,
+  AlertCircle,
+  ClipboardCheck,
+  Package,
+  ShieldCheck
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +42,9 @@ import SettingsModal from './src/components/SettingsModal';
 import AnalyticsScreen from './src/components/AnalyticsScreen';
 import CareTeamModal from './src/components/CareTeamModal';
 import EmergencyGoBag from './src/components/EmergencyGoBag';
+import BatchLogModal from './src/components/BatchLogModal';
+import AppointmentModal from './src/components/AppointmentModal';
+import VaccineLedger from './src/components/VaccineLedger';
 import ReportsScreen from './src/components/ReportsScreen';
 import { calculateAdherence } from './src/services/analytics-service';
 
@@ -58,6 +67,7 @@ function MainApp() {
   const [medications, setMedications] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [vitals, setVitals] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
 
   // Modal State
   const [showScanner, setShowScanner] = useState(false);
@@ -68,8 +78,12 @@ function MainApp() {
   const [showCareTeam, setShowCareTeam] = useState(false);
   const [showGoBag, setShowGoBag] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showBatchLog, setShowBatchLog] = useState(false);
+  const [showAppointments, setShowAppointments] = useState(false);
+  const [showVaccines, setShowVaccines] = useState(false);
   const [editingMed, setEditingMed] = useState<any>(null);
   const [scannedMedData, setScannedMedData] = useState<any>(null);
+  const [allMedications, setAllMedications] = useState<any[]>([]);
   const [editingPet, setEditingPet] = useState<any>(null);
 
   const onRefresh = async () => {
@@ -143,6 +157,15 @@ function MainApp() {
       console.log(`Total pets synced: ${allPets.length}`);
       setPets(allPets);
       
+      // Fetch all medications for all pets
+      if (allPets.length > 0) {
+        const { data: allMeds } = await supabase
+          .from('medications')
+          .select('*')
+          .in('pet_id', allPets.map(p => p.id));
+        setAllMedications(allMeds || []);
+      }
+
       if (allPets.length > 0) {
         // Stale ID Guard: Ensure selectedPetId is valid and exists in allPets
         const currentPetExists = allPets.find(p => p.id === selectedPetId);
@@ -188,6 +211,15 @@ function MainApp() {
       .eq('type', 'weight')
       .order('recorded_at', { ascending: false });
     setVitals(weightLogs || []);
+
+    // Fetch Appointments
+    const { data: appts } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('pet_id', petId)
+      .eq('status', 'upcoming')
+      .order('appointment_at', { ascending: true });
+    setAppointments(appts || []);
   };
 
   const handleLogWeight = async (weight: number) => {
@@ -247,6 +279,8 @@ function MainApp() {
               if (error) throw error;
               await cancelMedicationNotifications(medId);
               if (selectedPetId) fetchPetData(selectedPetId);
+              // Update allMedications
+              setAllMedications(prev => prev.filter(m => m.id !== medId));
             } catch (error: any) {
               Alert.alert('Error', error.message);
             }
@@ -254,6 +288,32 @@ function MainApp() {
         }
       ]
     );
+  };
+
+  const handleLogBatch = async (logs: any[]) => {
+    try {
+      const { error } = await supabase
+        .from('activity_logs')
+        .insert(logs);
+      
+      if (error) throw error;
+
+      // Update local state for all medications (last_taken_at)
+      const now = new Date().toISOString();
+      const medIds = logs.map(l => l.medication_id);
+      
+      setAllMedications(prev => prev.map(m => 
+        medIds.includes(m.id) ? { ...m, last_taken_at: now } : m
+      ));
+
+      // Refresh current pet data if relevant
+      if (selectedPetId) fetchPetData(selectedPetId);
+      
+      Alert.alert('Batch Complete', `${logs.length} clinical records synchronized successfully.`);
+    } catch (error: any) {
+      console.error('Batch Logging Error:', error);
+      throw error;
+    }
   };
 
   const handleRefillMedication = async (medId: string, doses: number) => {
@@ -302,13 +362,13 @@ function MainApp() {
     // 3. Schedule next dose notification
     if (med.interval_hours > 0) {
       await cancelMedicationNotifications(med.id);
-      await scheduleAdaptiveDose(med.id, med.name, med.interval_hours);
+      await scheduleAdaptiveDose(med.id, med.name, med.interval_hours, med.reminder_interval_mins, med.reminder_count);
     }
     
     // 4. Overdue Warning for clinical safety
     const lastTaken = med.last_taken_at ? new Date(med.last_taken_at).getTime() : new Date(med.start_date || med.created_at).getTime();
     const nextDue = lastTaken + (med.interval_hours * 3600000);
-    const isLate = Date.now() > nextDue + (2 * 3600000); // More than 2 hours late
+    const isLate = Date.now() > nextDue + (45 * 60000); // More than 45 minutes late
     
     if (isLate) {
       Alert.alert(
@@ -321,6 +381,52 @@ function MainApp() {
     }
     
     fetchPetData(selectedPetId!);
+  };
+
+  const handleRefuseDose = async (med: any) => {
+    if (!session?.user) return;
+    
+    const now = new Date().toISOString();
+    
+    // 1. Create Log with 'refused' status
+    const { error: logError } = await supabase.from('activity_logs').insert({
+      pet_id: selectedPetId,
+      medication_id: med.id,
+      type: 'medication',
+      status: 'refused',
+      taken_at: now,
+      notes: `Dose of ${med.name} was refused or spit out.`
+    });
+
+    if (logError) {
+      console.error('Refusal log error:', logError);
+      Alert.alert('Error Logging Refusal', logError.message);
+      return;
+    }
+
+    // 2. Ask for Retry Reminder
+    Alert.alert(
+      'Dose Refused',
+      `${pets.find(p => p.id === selectedPetId)?.name} refused the medication. Would you like a reminder to retry in 30 minutes?`,
+      [
+        { 
+          text: 'No', 
+          onPress: () => fetchPetData(selectedPetId!),
+          style: 'cancel' 
+        },
+        { 
+          text: 'Remind Me', 
+          onPress: async () => {
+            const retryAt = new Date(Date.now() + 30 * 60000).toISOString();
+            // Update the log with retry_at (using the ID we just created)
+            // Note: For simplicity in this demo, we just schedule the notification
+            await scheduleAdaptiveDose(med.id, `${med.name} (Retry)`, 0.5); // 0.5 hours = 30 mins
+            Alert.alert('Retry Scheduled', 'We will remind you in 30 minutes.');
+            fetchPetData(selectedPetId!);
+          }
+        }
+      ]
+    );
   };
 
   if (loading) return null;
@@ -412,8 +518,71 @@ function MainApp() {
                 Hi, {session?.user?.user_metadata?.full_name || 'Pet Parent'}! 👋
               </Text>
               <Text style={styles.subGreeting}>
-                Keep tracking <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{pets.find(p => p.id === selectedPetId)?.name || pets[0].name}</Text>'s health.
+                Keep tracking <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{pets.find(p => p.id === selectedPetId)?.name || pets[0]?.name || 'your pet'}</Text>'s health.
               </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => {
+                setEditingPet(pets.find(p => p.id === selectedPetId));
+                setShowPetSetup(true);
+              }}
+              style={styles.editBtnSmall}
+            >
+              <Text style={styles.editBtnText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.clinicalHub}>
+            <Text style={[styles.sectionTitle, isDark && { color: theme.colors.white }]}>Clinical Hub</Text>
+            <View style={styles.hubGrid}>
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowGoBag(true)}>
+                <LinearGradient colors={['#FF4B4B', '#FF7676']} style={styles.hubIcon}>
+                  <Heart size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Go-Bag</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowCareTeam(true)}>
+                <LinearGradient colors={['#3B82F6', '#60A5FA']} style={styles.hubIcon}>
+                  <Users size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Team</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.hubItem} onPress={() => setActiveTab('reports')}>
+                <LinearGradient colors={['#8B5CF6', '#A78BFA']} style={styles.hubIcon}>
+                  <FileText size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Reports</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowBatchLog(true)}>
+                <LinearGradient colors={['#10B981', '#34D399']} style={styles.hubIcon}>
+                  <ClipboardCheck size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Rounds</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowScanner(true)}>
+                <LinearGradient colors={['#F59E0B', '#FBBF24']} style={styles.hubIcon}>
+                  <Camera size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Scanner</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowAppointments(true)}>
+                <LinearGradient colors={['#EC4899', '#F472B6']} style={styles.hubIcon}>
+                  <Calendar size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Events</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.hubItem} onPress={() => setShowVaccines(true)}>
+                <LinearGradient colors={['#0EA5E9', '#38BDF8']} style={styles.hubIcon}>
+                  <ShieldCheck size={20} color="#FFF" />
+                </LinearGradient>
+                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Vaccines</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -458,39 +627,33 @@ function MainApp() {
               </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.clinicalHub}>
-            <Text style={[styles.sectionTitle, isDark && { color: theme.colors.white }]}>Clinical Hub</Text>
-            <View style={styles.hubGrid}>
-              <TouchableOpacity style={styles.hubItem} onPress={() => setShowGoBag(true)}>
-                <LinearGradient colors={['#FF4B4B', '#FF7676']} style={styles.hubIcon}>
-                  <Heart size={20} color="#FFF" />
-                </LinearGradient>
-                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Go-Bag</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.hubItem} onPress={() => setShowCareTeam(true)}>
-                <LinearGradient colors={['#3B82F6', '#60A5FA']} style={styles.hubIcon}>
-                  <Users size={20} color="#FFF" />
-                </LinearGradient>
-                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Team</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.hubItem} onPress={() => setActiveTab('reports')}>
-                <LinearGradient colors={['#8B5CF6', '#A78BFA']} style={styles.hubIcon}>
-                  <FileText size={20} color="#FFF" />
-                </LinearGradient>
-                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Reports</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.hubItem} onPress={() => setShowScanner(true)}>
-                <LinearGradient colors={['#10B981', '#34D399']} style={styles.hubIcon}>
-                  <Camera size={20} color="#FFF" />
-                </LinearGradient>
-                <Text style={[styles.hubLabel, isDark && { color: theme.colors.slate[300] }]}>Scanner</Text>
-              </TouchableOpacity>
+          {appointments.length > 0 && (
+            <View style={{ marginBottom: 24 }}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, isDark && { color: theme.colors.white }]}>Upcoming Care</Text>
+                <TouchableOpacity onPress={() => setShowAppointments(true)}>
+                  <Text style={styles.addMedHeaderText}>View All</Text>
+                </TouchableOpacity>
+              </View>
+              {appointments.slice(0, 1).map(appt => (
+                <TouchableOpacity 
+                  key={appt.id} 
+                  style={[styles.apptCard, isDark && { backgroundColor: theme.colors.dark.card }]}
+                  onPress={() => setShowAppointments(true)}
+                >
+                  <View style={styles.apptIconBox}>
+                    <Calendar size={20} color={theme.colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.apptTitle, isDark && { color: theme.colors.white }]}>{appt.title}</Text>
+                    <Text style={styles.apptSubtitle}>{new Date(appt.appointment_at).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.colors.slate[400]} />
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
+          )}
+
 
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, isDark && { color: theme.colors.white }]}>Clinical Schedule</Text>
@@ -513,6 +676,7 @@ function MainApp() {
                   key={med.id}
                   medication={med}
                   onTake={() => handleTakeDose(med)}
+                  onRefuse={() => handleRefuseDose(med)}
                   onEdit={() => { setEditingMed(med); setShowAddMedication(true); }}
                   onDelete={() => handleDeleteMedication(med.id)}
                 />
@@ -542,171 +706,199 @@ function MainApp() {
 </ScrollView>
 );
 
-return (
-<SafeAreaView style={[styles.container, isDark && { backgroundColor: theme.colors.dark.bg }]} edges={['top', 'left', 'right']}>
-  <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-  
-  <View style={[styles.header, isDark && { backgroundColor: theme.colors.dark.bg, borderBottomColor: theme.colors.dark.border }]}>
-    <View style={styles.headerLeft}>
-      <Logo size={32} />
-      <Text style={[styles.headerTitle, isDark && { color: theme.colors.white }]}>Halo Pet Care</Text>
-    </View>
-    <View style={styles.headerRight}>
-      <TouchableOpacity style={styles.iconButton} onPress={() => setShowSettings(true)}>
-        <Settings size={24} color={isDark ? theme.colors.slate[300] : theme.colors.slate[400]} />
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.iconButton} onPress={() => setShowActivity(true)}>
-        <ActivityIcon size={24} color={isDark ? theme.colors.slate[300] : theme.colors.slate[400]} />
-      </TouchableOpacity>
-    </View>
-  </View>
+  return (
+    <SafeAreaView style={[styles.container, isDark && { backgroundColor: theme.colors.dark.bg }]} edges={['top', 'left', 'right', 'bottom']}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      
+      <View style={[styles.header, isDark && { backgroundColor: theme.colors.dark.bg, borderBottomColor: theme.colors.dark.border }]}>
+        <View style={styles.headerLeft}>
+          <Logo size={32} />
+          <Text style={[styles.headerTitle, isDark && { color: theme.colors.white }]}>Halo Pet Care</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => setShowSettings(true)}>
+            <Settings size={24} color={isDark ? theme.colors.slate[300] : theme.colors.slate[400]} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={() => setShowActivity(true)}>
+            <ActivityIcon size={24} color={isDark ? theme.colors.slate[300] : theme.colors.slate[400]} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-  {activeTab === 'dashboard' && renderDashboard()}
-  {activeTab === 'insights' && (
-    <AnalyticsScreen 
-      medications={medications} 
-      logs={activityLogs} 
-      vitals={vitals} 
-      isDark={isDark} 
-      onLogWeight={handleLogWeight} 
-      onRefill={handleRefillMedication} 
-    />
-  )}
-  {activeTab === 'reports' && (
-    <ReportsScreen 
-      isDark={isDark} 
-      pet={pets.find(p => p.id === selectedPetId)} 
-      medications={medications} 
-      vitals={vitals} 
-      activityLogs={activityLogs} 
-    />
-  )}
+      {activeTab === 'dashboard' && renderDashboard()}
+      {activeTab === 'insights' && (
+        <AnalyticsScreen 
+          medications={medications || []} 
+          logs={activityLogs || []} 
+          vitals={vitals || []} 
+          isDark={isDark} 
+          onLogWeight={handleLogWeight} 
+          onRefill={handleRefillMedication} 
+        />
+      )}
+      {activeTab === 'reports' && (
+        <ReportsScreen 
+          isDark={isDark} 
+          pet={pets.find(p => p.id === selectedPetId)} 
+          medications={medications || []} 
+          vitals={vitals || []} 
+          activityLogs={activityLogs || []} 
+          onClose={() => setActiveTab('dashboard')} 
+        />
+      )}
 
-  {/* Modals */}
-  {showScanner && (
-    <PillScanner 
-      onClose={() => setShowScanner(false)} 
-      onResult={(res) => { 
-        console.log('Scanner Result:', res);
-        setShowScanner(false); 
-        setScannedMedData(res); 
-        setShowAddMedication(true); 
-      }} 
-    />
-  )}
-  
-  <SettingsModal 
-    visible={showSettings} 
-    onClose={() => setShowSettings(false)} 
-    pets={pets}
-    onDeletePet={handleDeletePet}
-    onEditPet={(pet) => { setEditingPet(pet); setShowPetSetup(true); }}
-  />
-  <PetSetupModal 
-    visible={showPetSetup} 
-    onClose={() => { setShowPetSetup(false); setEditingPet(null); }} 
-    pet={editingPet}
-    onSuccess={() => {
-      console.log('Pet Setup Success - Refreshing Data');
-      setShowPetSetup(false);
-      setEditingPet(null);
-      fetchInitialData();
-    }} 
-  />
-  <ActivityModal visible={showActivity} onClose={() => setShowActivity(false)} logs={activityLogs} />
-  
-  {pets.length > 0 && selectedPetId && (
-    <>
-      <CareTeamModal visible={showCareTeam} onClose={() => setShowCareTeam(false)} pet={pets.find(p => p.id === selectedPetId)} userEmail={session?.user?.email || ''} />
-      <EmergencyGoBag visible={showGoBag} onClose={() => setShowGoBag(false)} pet={pets.find(p => p.id === selectedPetId)} medications={medications} logs={activityLogs} vitals={vitals} />
-    </>
-  )}
+      {/* Clinical Modals */}
+      {showScanner && (
+        <PillScanner 
+          onClose={() => setShowScanner(false)} 
+          onResult={(res) => { 
+            setShowScanner(false); 
+            setScannedMedData(res); 
+            setShowAddMedication(true); 
+          }} 
+        />
+      )}
 
-  <AddMedicationModal 
-    visible={showAddMedication} 
-    onClose={() => { setShowAddMedication(false); setEditingMed(null); setScannedMedData(null); }}
-    petId={selectedPetId!}
-    petName={pets.find(p => p.id === selectedPetId)?.name || 'your pet'}
-    initialData={scannedMedData}
-    editingMedication={editingMed}
-    onSuccess={() => { 
-      console.log('Medication Added Success');
-      if (selectedPetId) fetchPetData(selectedPetId);
-      setShowAddMedication(false); 
-    }}
-  />
+      <SettingsModal 
+        visible={showSettings} 
+        onClose={() => setShowSettings(false)} 
+        pets={pets}
+        onDeletePet={handleDeletePet}
+        onEditPet={(pet) => { setEditingPet(pet); setShowPetSetup(true); }}
+      />
 
-  {/* Bottom Tab Bar */}
-  <View style={[styles.tabBar, isDark && { backgroundColor: theme.colors.dark.bg, borderTopColor: theme.colors.dark.border }]}>
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      style={styles.tabItem} 
-      onPress={() => {
-        console.log('Navigating to Dashboard');
-        setActiveTab('dashboard');
-      }}
-    >
-      <ClipboardList size={24} color={activeTab === 'dashboard' ? theme.colors.primary : theme.colors.slate[400]} />
-      <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Home</Text>
-    </TouchableOpacity>
-    
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      style={styles.tabItem} 
-      onPress={() => {
-        console.log('Navigating to Insights');
-        setActiveTab('insights');
-      }}
-    >
-      <TrendingUp size={24} color={activeTab === 'insights' ? theme.colors.primary : theme.colors.slate[400]} />
-      <Text style={[styles.tabLabel, activeTab === 'insights' && styles.tabLabelActive]}>Insights</Text>
-    </TouchableOpacity>
-    
-    {/* Identical placeholder to ensure perfect symmetry */}
-    <View style={styles.tabItem} pointerEvents="none" />
-    
-    {/* Centered FAB Container */}
-    <View style={styles.fabContainer}>
-      <TouchableOpacity 
-        activeOpacity={0.9}
-        style={styles.fab} 
-        onPress={() => {
-          setEditingMed(null);
-          setShowAddMedication(true);
+      <PetSetupModal 
+        visible={showPetSetup} 
+        onClose={() => { setShowPetSetup(false); setEditingPet(null); }} 
+        pet={editingPet}
+        onSuccess={() => {
+          setShowPetSetup(false);
+          setEditingPet(null);
+          fetchInitialData();
+        }} 
+      />
+
+      <AddMedicationModal 
+        visible={showAddMedication} 
+        onClose={() => { setShowAddMedication(false); setEditingMed(null); setScannedMedData(null); }}
+        petId={selectedPetId!}
+        petName={pets.find(p => p.id === selectedPetId)?.name || 'your pet'}
+        initialData={scannedMedData}
+        editingMedication={editingMed}
+        onSuccess={() => { 
+          if (selectedPetId) fetchPetData(selectedPetId);
+          setShowAddMedication(false); 
         }}
-      >
-        <LinearGradient
-          colors={theme.gradients.brand}
-          style={styles.fabGradient}
+      />
+
+      <ActivityModal 
+        visible={showActivity} 
+        onClose={() => setShowActivity(false)} 
+        logs={activityLogs || []}
+      />
+
+      <CareTeamModal 
+        visible={showCareTeam} 
+        onClose={() => setShowCareTeam(false)} 
+        pet={pets.find(p => p.id === selectedPetId)}
+        userEmail={session?.user?.email || ''}
+      />
+
+      <EmergencyGoBag 
+        visible={showGoBag} 
+        onClose={() => setShowGoBag(false)} 
+        pet={pets.find(p => p.id === selectedPetId)}
+        medications={medications || []}
+        logs={activityLogs || []}
+        vitals={vitals || []}
+      />
+
+      <BatchLogModal
+        visible={showBatchLog}
+        onClose={() => setShowBatchLog(false)}
+        pets={pets || []}
+        allMedications={medications || []}
+        onLogBatch={handleLogBatch}
+      />
+
+      <AppointmentModal
+        visible={showAppointments}
+        onClose={() => setShowAppointments(false)}
+        petId={selectedPetId!}
+        petName={pets.find(p => p.id === selectedPetId)?.name || ''}
+        onSuccess={() => selectedPetId && fetchPetData(selectedPetId)}
+      />
+
+      <VaccineLedger
+        visible={showVaccines}
+        onClose={() => setShowVaccines(false)}
+        petId={selectedPetId!}
+      />
+
+      {/* Bottom Tab Bar */}
+      <View style={[styles.tabBar, isDark && { backgroundColor: theme.colors.dark.bg, borderTopColor: theme.colors.dark.border }]}>
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          style={styles.tabItem} 
+          onPress={() => setActiveTab('dashboard')}
+          hitSlop={{ top: 10, bottom: 20, left: 10, right: 10 }}
         >
-          <Plus size={28} color={theme.colors.white} />
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-    
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      style={styles.tabItem} 
-      onPress={() => {
-        console.log('Navigating to Reports');
-        setActiveTab('reports');
-      }}
-    >
-      <FileText size={24} color={activeTab === 'reports' ? theme.colors.primary : theme.colors.slate[400]} />
-      <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabLabelActive]}>Reports</Text>
-    </TouchableOpacity>
-    
-    <TouchableOpacity 
-      activeOpacity={0.7}
-      style={styles.tabItem} 
-      onPress={() => setShowSettings(true)}
-    >
-      <Settings size={24} color={theme.colors.slate[400]} />
-      <Text style={styles.tabLabel}>Settings</Text>
-    </TouchableOpacity>
-  </View>
-</SafeAreaView>
-);
+          <ClipboardList size={24} color={activeTab === 'dashboard' ? theme.colors.primary : theme.colors.slate[400]} />
+          <Text style={[styles.tabLabel, activeTab === 'dashboard' && styles.tabLabelActive]}>Home</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          style={styles.tabItem} 
+          onPress={() => setActiveTab('insights')}
+          hitSlop={{ top: 10, bottom: 20, left: 10, right: 10 }}
+        >
+          <TrendingUp size={24} color={activeTab === 'insights' ? theme.colors.primary : theme.colors.slate[400]} />
+          <Text style={[styles.tabLabel, activeTab === 'insights' && styles.tabLabelActive]}>Insights</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.tabItem} pointerEvents="none" />
+        
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          style={styles.tabItem} 
+          onPress={() => setActiveTab('reports')}
+          hitSlop={{ top: 10, bottom: 20, left: 10, right: 10 }}
+        >
+          <FileText size={24} color={activeTab === 'reports' ? theme.colors.primary : theme.colors.slate[400]} />
+          <Text style={[styles.tabLabel, activeTab === 'reports' && styles.tabLabelActive]}>Reports</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          style={styles.tabItem} 
+          onPress={() => setShowSettings(true)}
+          hitSlop={{ top: 10, bottom: 20, left: 10, right: 10 }}
+        >
+          <Settings size={24} color={theme.colors.slate[400]} />
+          <Text style={styles.tabLabel}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.fabOuterContainer} pointerEvents="box-none">
+        <View style={styles.fabContainer} pointerEvents="box-none">
+          <TouchableOpacity 
+            activeOpacity={0.9}
+            style={styles.fab} 
+            onPress={() => {
+              setEditingMed(null);
+              setShowAddMedication(true);
+            }}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          >
+            <LinearGradient colors={theme.gradients.brand} style={styles.fabGradient}>
+              <Plus size={28} color={theme.colors.white} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 export default function App() {
@@ -719,14 +911,20 @@ export default function App() {
   );
 }
 
-const MedicationItem = ({ medication, onTake, onEdit, onDelete }) => {
+const MedicationItem = ({ medication, onTake, onRefuse, onEdit, onDelete }) => {
   const { isDark } = useTheme();
   const lastTaken = medication.last_taken_at ? new Date(medication.last_taken_at).getTime() : new Date(medication.start_date || medication.created_at).getTime();
   const nextTime = lastTaken + (medication.interval_hours * 3600000);
   const diff = nextTime - Date.now();
   const isOverdue = diff < 0;
-  const isCriticallyLate = diff < -(2 * 3600000); // 2+ hours late
+  const isCriticallyLate = diff < -(45 * 60000); // 45+ minutes late
   const timeStr = new Date(nextTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  
+  // Refill Predictor Logic
+  const dosesPerDay = 24 / medication.interval_hours;
+  const daysRemaining = medication.remaining_doses / dosesPerDay;
+  const isLowSupply = daysRemaining <= 7 && medication.remaining_doses > 0;
+  const isOutOfStock = medication.remaining_doses <= 0;
 
   return (
     <HaloCard variant={isOverdue ? 'elevated' : 'outline'} style={[
@@ -747,20 +945,52 @@ const MedicationItem = ({ medication, onTake, onEdit, onDelete }) => {
             {isCriticallyLate ? 'MISSED / CRITICALLY LATE' : (isOverdue ? 'OVERDUE' : `Due at ${timeStr}`)}
           </Text>
           <Text style={[styles.medTitle, isDark && { color: theme.colors.white }]}>{medication.name}</Text>
-          <Text style={[styles.medSubtitle, isDark && { color: theme.colors.slate[400] }]}>{medication.dosage_instructions} • {medication.remaining_doses} doses left</Text>
+          <Text style={[styles.medSubtitle, isDark && { color: theme.colors.slate[400] }]}>
+            {medication.dosage_instructions}
+          </Text>
+          
+          {/* Refined Inventory Row */}
+          {isOutOfStock ? (
+            <View style={[styles.inventoryStatusRow, { backgroundColor: '#FEE2E2' }]}>
+              <AlertCircle size={12} color="#EF4444" />
+              <Text style={[styles.inventoryStatusText, { color: '#EF4444' }]}>OUT OF STOCK • REFILL NOW</Text>
+            </View>
+          ) : isLowSupply ? (
+            <View style={[styles.inventoryStatusRow, { backgroundColor: '#FEF3C7' }]}>
+              <RotateCcw size={12} color="#D97706" />
+              <Text style={[styles.inventoryStatusText, { color: '#D97706' }]}>LOW STOCK • {Math.ceil(daysRemaining)}d LEFT</Text>
+            </View>
+          ) : medication.remaining_doses !== null && (
+            <View style={[styles.inventoryStatusRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' }]}>
+              <Package size={12} color={isDark ? theme.colors.slate[400] : theme.colors.slate[500]} />
+              <Text style={[styles.inventoryStatusText, { color: isDark ? theme.colors.slate[400] : theme.colors.slate[500] }]}>
+                {medication.remaining_doses} DOSES REMAINING
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
       
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <TouchableOpacity onPress={onEdit} style={[styles.takeBtn, { backgroundColor: 'transparent', marginRight: 4 }]}>
-          <Pencil size={18} color={theme.colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onDelete} style={[styles.takeBtn, { backgroundColor: 'transparent', marginRight: 4 }]}>
-          <Trash2 size={20} color={isDark ? theme.colors.slate[500] : theme.colors.slate[400]} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onTake} style={styles.takeBtn}>
-          <Check size={20} color={theme.colors.white} />
-        </TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* Secondary Actions */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 4 }}>
+          <TouchableOpacity onPress={onEdit} style={[styles.takeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+            <Pencil size={16} color={isDark ? theme.colors.slate[400] : theme.colors.slate[500]} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onDelete} style={[styles.takeBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+            <Trash2 size={16} color={theme.colors.error + '90'} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Primary Actions */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity onPress={onRefuse} style={[styles.takeBtn, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}>
+            <X size={20} color={theme.colors.error} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onTake} style={styles.takeBtn}>
+            <Check size={20} color={theme.colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
     </HaloCard>
   );
@@ -806,6 +1036,19 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 24, fontWeight: '800', color: theme.colors.slate[800] },
   subGreeting: { fontSize: 14, color: theme.colors.slate[500], marginTop: 2 },
+  editBtnSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary + '10',
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  editBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
   emergencyRow: { flexDirection: 'row' },
   goBagBtn: { 
     flexDirection: 'row', 
@@ -863,10 +1106,16 @@ const styles = StyleSheet.create({
   clinicalHub: { marginBottom: 24 },
   hubGrid: { 
     flexDirection: 'row', 
-    justifyContent: 'space-evenly',
-    marginTop: 16 
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    marginTop: 16,
+    gap: 12
   },
-  hubItem: { alignItems: 'center', width: 70 },
+  hubItem: { 
+    alignItems: 'center', 
+    width: '22%', 
+    marginBottom: 16 
+  },
   hubIcon: { 
     width: 48, 
     height: 48, 
@@ -876,7 +1125,7 @@ const styles = StyleSheet.create({
     marginBottom: 8, 
     ...theme.shadows.soft 
   },
-  hubLabel: { fontSize: 11, fontWeight: '700', color: theme.colors.slate[600] },
+  hubLabel: { fontSize: 11, fontWeight: '700', color: theme.colors.slate[600], textAlign: 'center' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.slate[800] },
   addMedHeaderBtn: { flexDirection: 'row', alignItems: 'center' },
@@ -884,7 +1133,7 @@ const styles = StyleSheet.create({
   medicationList: { gap: 12 },
   medCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20 },
   medCardOverdue: { borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' },
-  medIconContainer: { padding: 10, borderRadius: 12, backgroundColor: '#F3F4F6' },
+  medIconContainer: { padding: 10, borderRadius: 12 },
   medContent: { flex: 1, marginLeft: 12 },
   medTime: { fontSize: 10, fontWeight: '700', color: theme.colors.slate[400], textTransform: 'uppercase' },
   medTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.slate[800] },
@@ -895,12 +1144,14 @@ const styles = StyleSheet.create({
     borderRadius: 20, 
     backgroundColor: theme.colors.primary, 
     alignItems: 'center', 
-    justifyContent: 'center' 
+    justifyContent: 'center',
+    ...theme.shadows.soft
   },
   tabBar: { 
     flexDirection: 'row', 
     backgroundColor: '#FFF', 
-    paddingBottom: 32, 
+    paddingBottom: 8, 
+    paddingTop: 8, 
     paddingHorizontal: 20, 
     borderTopWidth: 1, 
     borderTopColor: '#F3F4F6', 
@@ -910,13 +1161,16 @@ const styles = StyleSheet.create({
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
   tabLabel: { fontSize: 10, fontWeight: '700', color: theme.colors.slate[400], marginTop: 4 },
   tabLabelActive: { color: theme.colors.primary },
-  fabContainer: {
+  fabOuterContainer: {
     position: 'absolute',
+    bottom: 30,
     left: 0,
     right: 0,
-    top: -20,
     alignItems: 'center',
-    zIndex: 10,
+    zIndex: 20,
+  },
+  fabContainer: {
+    alignItems: 'center',
   },
   fab: { 
     width: 56, 
@@ -984,7 +1238,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'center',
     borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.8)',
   },
   noMedsIconBox: {
     width: 64,
@@ -993,7 +1246,47 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  apptCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    ...theme.shadows.soft,
+  },
+  apptIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  apptTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.slate[800],
+  },
+  apptSubtitle: {
+    fontSize: 13,
+    color: theme.colors.slate[500],
+    marginTop: 2,
+  },
+  inventoryStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  inventoryStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   noMedsTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.slate[800], marginTop: 0 },
   noMedsSubtitle: { 

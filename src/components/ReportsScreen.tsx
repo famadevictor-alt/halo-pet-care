@@ -247,7 +247,7 @@ const ReportsScreen: React.FC<ReportsScreenProps> = ({
             <View style={styles.loadingContainer}>
               <ActivityIndicator color={theme.colors.primary} />
             </View>
-          ) : externalReports.length > 0 ? (
+          ) : (externalReports && externalReports.length > 0) ? (
             <View style={styles.reportList}>
               {externalReports.map((report) => (
                 <TouchableOpacity 

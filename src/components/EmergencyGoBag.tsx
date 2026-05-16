@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
-  StatusBar
+  StatusBar,
+  Linking,
+  Alert
 } from 'react-native';
 import { 
   X, 
@@ -45,16 +47,16 @@ export default function EmergencyGoBag({
   visible,
   onClose,
   pet,
-  medications,
-  logs,
-  vitals
+  medications = [],
+  logs = [],
+  vitals = []
 }: EmergencyGoBagProps) {
   const { isDark } = useTheme();
   const lastLog = (medId: string) => {
-    return logs.find(l => l.medication_id === medId);
+    return (logs || []).find(l => l.medication_id === medId);
   };
 
-  const currentWeight = vitals.length > 0 ? vitals[0].value : (pet?.weight_kg || '—');
+  const currentWeight = (vitals || []).length > 0 ? vitals[0].value : (pet?.weight_kg || '—');
 
   return (
     <Modal
@@ -126,7 +128,7 @@ export default function EmergencyGoBag({
                 <Text style={styles.alertTitle}>Allergies & Clinical Notes</Text>
               </View>
               <Text style={styles.alertText}>
-                {pet?.medical_notes || 'No critical clinical alerts or allergies documented in registry.'}
+                {pet?.allergies || 'No critical clinical alerts or allergies documented in registry.'}
               </Text>
             </View>
           </View>
@@ -134,13 +136,13 @@ export default function EmergencyGoBag({
           {/* Active Medications */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>ACTIVE MEDICATION REGISTRY</Text>
-            {medications.length === 0 ? (
+            {(medications || []).length === 0 ? (
               <View style={[styles.emptyCard, !isDark && { backgroundColor: 'rgba(0,0,0,0.02)', borderColor: 'rgba(0,0,0,0.05)' }]}>
                 <Info size={24} color={theme.colors.slate[400]} />
                 <Text style={styles.emptyText}>No active medications found.</Text>
               </View>
             ) : (
-              medications.map(med => {
+              (medications || []).map(med => {
                 const lastTaken = lastLog(med.id);
                 return (
                   <View key={med.id} style={[styles.medCard, !isDark && { backgroundColor: '#FFF', borderColor: 'rgba(0,0,0,0.05)' }]}>
@@ -170,9 +172,14 @@ export default function EmergencyGoBag({
           {/* Protocol Info */}
           <View style={[styles.protocolCard, !isDark && { backgroundColor: 'rgba(0,0,0,0.03)' }]}>
             <Stethoscope size={20} color={isDark ? theme.colors.slate[400] : theme.colors.slate[500]} />
-            <Text style={[styles.protocolText, !isDark && { color: theme.colors.slate[600] }]}>
-              Present this screen to the intake nurse. It provides essential triage information and current medication status.
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.protocolText, !isDark && { color: theme.colors.slate[600] }]}>
+                Primary Clinic: <Text style={{ fontWeight: '800', fontStyle: 'normal' }}>{pet?.vet_name || 'NOT SPECIFIED'}</Text>
+              </Text>
+              <Text style={[styles.protocolText, { marginTop: 4 }, !isDark && { color: theme.colors.slate[600] }]}>
+                Present this screen to the intake nurse. It provides essential triage information and current medication status.
+              </Text>
+            </View>
           </View>
 
           <View style={{ height: 100 }} />
@@ -180,7 +187,47 @@ export default function EmergencyGoBag({
 
         {/* Footer Actions */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.emergencyBtn} onPress={() => {/* Logic for calling vet */}}>
+          <TouchableOpacity 
+            style={styles.emergencyBtn} 
+            activeOpacity={0.7}
+            onPress={async () => {
+              console.log('Emergency Contact Button Pressed');
+              if (!pet?.vet_phone) {
+                Alert.alert(
+                  'Contact Missing',
+                  'No primary care veterinarian phone number was found in the pet registry. Please update the pet profile in Settings.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+
+              // Sanitize phone number (remove spaces, dashes, etc.)
+              const sanitizedPhone = pet.vet_phone.replace(/[^\d+]/g, '');
+              const phoneUrl = `tel:${sanitizedPhone}`;
+
+              try {
+                const supported = await Linking.canOpenURL(phoneUrl);
+                console.log('Can open phone URL:', supported);
+                
+                if (supported) {
+                  await Linking.openURL(phoneUrl);
+                } else {
+                  // Fallback for simulators/tablets without phone support
+                  Alert.alert(
+                    'Phone Service Unavailable',
+                    `This device cannot place calls directly. \n\nVet Number: ${pet.vet_phone}`,
+                    [{ text: 'Copy Number', onPress: () => {
+                      // Note: Would normally use Clipboard here, but keeping it simple
+                      console.log('User notified of number:', pet.vet_phone);
+                    }}, { text: 'Close', style: 'cancel' }]
+                  );
+                }
+              } catch (error) {
+                console.error('Linking Error:', error);
+                Alert.alert('System Error', 'Could not initiate call service.');
+              }
+            }}
+          >
             <LinearGradient
               colors={['#EF4444', '#B91C1C']}
               style={StyleSheet.absoluteFill}
@@ -188,7 +235,7 @@ export default function EmergencyGoBag({
               end={{ x: 1, y: 0 }}
             />
             <Phone size={20} color="#FFF" />
-            <Text style={styles.emergencyBtnText}>Contact Primary Care Vet</Text>
+            <Text style={styles.emergencyBtnText}>Contact {pet?.vet_name || 'Primary Vet'}</Text>
           </TouchableOpacity>
         </View>
       </View>

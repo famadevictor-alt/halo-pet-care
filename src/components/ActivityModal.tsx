@@ -10,7 +10,7 @@ interface ActivityModalProps {
   logs: any[];
 }
 
-export default function ActivityModal({ visible, onClose, logs }: ActivityModalProps) {
+export default function ActivityModal({ visible, onClose, logs = [] }: ActivityModalProps) {
   const { isDark } = useTheme();
 
   const formatTime = (dateStr: string) => {
@@ -64,17 +64,26 @@ export default function ActivityModal({ visible, onClose, logs }: ActivityModalP
             {logs.length > 0 ? (
               logs.map((log) => (
                 <View key={log.id} style={[styles.logItem, dynamicStyles.logItem]}>
-                  <View style={[styles.logIcon, dynamicStyles.logIcon]}>
-                    <CheckCircle2 size={24} color={theme.colors.success} />
+                  <View style={[
+                    styles.logIcon, 
+                    log.status === 'refused' 
+                      ? { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2' }
+                      : dynamicStyles.logIcon
+                  ]}>
+                    {log.status === 'refused' ? (
+                      <X size={24} color={theme.colors.error} />
+                    ) : (
+                      <CheckCircle2 size={24} color={theme.colors.success} />
+                    )}
                   </View>
                   <View style={styles.logContent}>
                     <Text style={[styles.logTitle, dynamicStyles.text]}>
-                      {log.medications?.name || 'Medication'} administered
+                      {log.medications?.name || 'Medication'} {log.status === 'refused' ? 'refused' : 'administered'}
                     </Text>
                     <View style={styles.logMeta}>
                       <Clock size={14} color={isDark ? "rgba(255,255,255,0.4)" : theme.colors.slate[400]} />
                       <Text style={[styles.logTime, dynamicStyles.subtext]}>
-                        {formatDate(log.taken_at)} at {formatTime(log.taken_at)}
+                        {log.status === 'refused' ? 'Attempted' : 'Recorded'} {formatDate(log.taken_at)} at {formatTime(log.taken_at)}
                       </Text>
                     </View>
                   </View>

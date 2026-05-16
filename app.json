@@ -30,7 +30,8 @@
           "photosPermission": "Allow Halo Pet Care to access your photos to set your pet's profile picture."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "@react-native-community/datetimepicker"
     ],
     "web": {
       "favicon": "./assets/favicon.png",
